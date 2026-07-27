@@ -1,0 +1,27 @@
+{% extends "_base.html" %}
+{% block title %}{{ v['name'] }} — {{ APP_NAME }}{% endblock %}
+{% block content %}
+<div class="panel" style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+  <div style="width:140px;height:140px;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#ffe1c4,#ffd0e0);display:flex;align-items:center;justify-content:center;font-size:3rem">
+    {% if v['photo'] %}<img src="{{ v['photo'] }}" style="width:100%;height:100%;object-fit:cover" alt="">
+    {% else %}🥤{% endif %}
+  </div>
+  <div style="flex:1;min-width:220px">
+    <h1 style="margin:0">{{ v['name'] }}</h1>
+    <p class="muted">{{ v['description'] }}</p>
+  </div>
+</div>
+<h2>Juices</h2>
+<div class="grid">
+  {% for j in juices %}
+    <div class="card"><div class="body">
+      <h3>{{ j['name'] }}</h3>
+      <div class="price">{{ '{:,}'.format(j['price']) }} UGX</div>
+      <p class="muted">+ {{ SERVICE_FEE }} UGX delivery</p>
+      <a class="btn" href="{{ url_for('order_form', juice_id=j['id']) }}">Order</a>
+    </div></div>
+  {% else %}
+    <p class="muted">No juices available right now.</p>
+  {% endfor %}
+</div>
+{% endblock %}

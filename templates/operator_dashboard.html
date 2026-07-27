@@ -1,0 +1,37 @@
+{% extends "_base.html" %}
+{% block title %}Operator — {{ APP_NAME }}{% endblock %}
+{% block content %}
+<h1>Operator Dashboard</h1>
+<div>
+  <div class="stat"><span>Today's orders</span><b>{{ todays_count }}</b></div>
+  <div class="stat" style="background:linear-gradient(135deg,var(--orange),var(--pink))"><span>Today's revenue</span><b>{{ '{:,}'.format(revenue_gross) }} UGX</b></div>
+  <div class="stat" style="background:linear-gradient(135deg,#facc15,#f59e0b)"><span>Today's service fees</span><b>{{ '{:,}'.format(revenue_fees) }} UGX</b></div>
+</div>
+
+<div class="panel">
+  <h2>All orders</h2>
+  <table>
+    <tr><th>#</th><th>Vendor</th><th>Juice</th><th>Customer</th><th>Total</th><th>Status</th><th>Update</th><th>When</th></tr>
+    {% for o in orders %}
+    <tr>
+      <td>{{ o['id'] }}</td>
+      <td>{{ o['vendor_name'] }}</td>
+      <td>{{ o['juice_name'] }}</td>
+      <td>{{ o['customer_name'] }}<br><span class="muted">{{ o['customer_phone'] }}<br>{{ o['customer_location'] }}</span></td>
+      <td>{{ '{:,}'.format(o['total']) }}</td>
+      <td><span class="badge {{ o['status']|replace(' ','') }}">{{ o['status'] }}</span></td>
+      <td>
+        <form method="post" style="display:flex;gap:6px">
+          <input type="hidden" name="order_id" value="{{ o['id'] }}">
+          <select name="status">
+            {% for s in statuses %}<option value="{{ s }}" {% if s==o['status'] %}selected{% endif %}>{{ s }}</option>{% endfor %}
+          </select>
+          <button class="btn small" type="submit">Save</button>
+        </form>
+      </td>
+      <td class="muted">{{ o['created_at'] }}</td>
+    </tr>
+    {% else %}<tr><td colspan="8" class="muted">No orders yet.</td></tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}

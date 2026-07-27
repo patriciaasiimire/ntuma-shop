@@ -1,0 +1,18 @@
+{% extends "_base.html" %}
+{% block content %}
+<h1>All Orders</h1>
+<div class="panel">
+<table>
+<tr><th>#</th><th>Vendor</th><th>Juice</th><th>Customer</th><th>Phone</th><th>Location</th><th>Total</th><th>Status</th><th>When</th></tr>
+{% for o in orders %}
+<tr>
+  <td>{{ o['id'] }}</td><td>{{ o['vendor_name'] }}</td><td>{{ o['juice_name'] }}</td>
+  <td>{{ o['customer_name'] }}</td><td>{{ o['customer_phone'] }}</td><td>{{ o['customer_location'] }}</td>
+  <td>{{ '{:,}'.format(o['total']) }}</td>
+  <td><span class="badge {{ o['status']|replace(' ','') }}">{{ o['status'] }}</span></td>
+  <td class="muted">{{ o['created_at'] }}</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+.env
+juicefront.db
+static/uploads/vendors/*
+!static/uploads/vendors/.gitkeep

@@ -1,0 +1,95 @@
+{% extends "_base.html" %}
+{% block title %}My Shop — {{ APP_NAME }}{% endblock %}
+{% block content %}
+<h1>My Shop 🍊</h1>
+
+<div class="panel">
+  <h2>Profile</h2>
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="action" value="profile">
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+      <div
+        style="width:120px;height:120px;border-radius:16px;overflow:hidden;background:#ffe1c4;display:flex;align-items:center;justify-content:center;font-size:3rem">
+        {% if v['photo'] %}<img src="{{ url_for('static', filename='uploads/vendors/' ~ v['photo']) }}"
+          style="width:100%;height:100%;object-fit:cover">
+        {% else %}🥤{% endif %}
+      </div>
+      <div style="flex:1;min-width:240px">
+        <label>Name</label><input name="name" value="{{ v['name'] }}">
+        <label>Phone</label><input name="phone" value="{{ v['phone'] }}">
+      </div>
+    </div>
+    <label>Description</label>
+    <textarea name="description" rows="3">{{ v['description'] }}</textarea>
+    <label>Upload new photo (max 2MB)</label>
+    <input type="file" name="photo" accept="image/*">
+    <br><br><button class="btn" type="submit">Save profile</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>My Juices</h2>
+  <table>
+    <tr>
+      <th>Name</th>
+      <th>Price (UGX)</th>
+      <th>Active</th>
+      <th></th>
+    </tr>
+    {% for j in juices %}
+    <tr>
+      <form method="post">
+        <input type="hidden" name="action" value="edit_juice">
+        <input type="hidden" name="juice_id" value="{{ j['id'] }}">
+        <td><input name="juice_name" value="{{ j['name'] }}"></td>
+        <td><input name="juice_price" type="number" value="{{ j['price'] }}"></td>
+        <td><input type="checkbox" name="active" {% if j['active'] %}checked{% endif %}></td>
+        <td>
+          <button class="btn small green" type="submit">Save</button>
+      </form>
+      <form method="post" style="display:inline" onsubmit="return confirm('Delete this juice?')">
+        <input type="hidden" name="action" value="delete_juice">
+        <input type="hidden" name="juice_id" value="{{ j['id'] }}">
+        <button class="btn small danger" type="submit">Delete</button>
+      </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <h3>Add new juice</h3>
+  <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+    <input type="hidden" name="action" value="add_juice">
+    <div style="flex:2;min-width:180px"><label>Name</label><input name="juice_name" required></div>
+    <div style="flex:1;min-width:120px"><label>Price</label><input name="juice_price" type="number" min="1" required>
+    </div>
+    <button class="btn" type="submit">Add</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>My Orders</h2>
+  <table>
+    <tr>
+      <th>#</th>
+      <th>Juice</th>
+      <th>Customer</th>
+      <th>Total</th>
+      <th>Status</th>
+      <th>When</th>
+    </tr>
+    {% for o in orders %}
+    <tr>
+      <td>{{ o['id'] }}</td>
+      <td>{{ o['juice_name'] }}</td>
+      <td>{{ o['customer_name'] }}<br><span class="muted">{{ o['customer_phone'] }}<br>{{ o['customer_location']
+          }}</span></td>
+      <td>{{ '{:,}'.format(o['total']) }}</td>
+      <td><span class="badge {{ o['status']|replace(' ','') }}">{{ o['status'] }}</span></td>
+      <td class="muted">{{ o['created_at'] }}</td>
+    </tr>
+    {% else %}<tr>
+      <td colspan="6" class="muted">No orders yet.</td>
+    </tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}

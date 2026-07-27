@@ -1,0 +1,12 @@
+{% extends "_base.html" %}
+{% block content %}
+<div class="panel" style="text-align:center">
+  <div style="font-size:4rem">✅</div>
+  <h1>Order placed!</h1>
+  <p>Your order ID is <b>#{{ o['id'] }}</b>.</p>
+  <p>{{ o['juice_name'] }} from <b>{{ o['vendor_name'] }}</b><br>
+     Total: <b>{{ '{:,}'.format(o['total']) }} UGX</b></p>
+  <p class="muted">We'll call {{ o['customer_phone'] }} shortly to confirm delivery.</p>
+  <a class="btn" href="{{ url_for('index') }}">Back to home</a>
+</div>
+{% endblock %}

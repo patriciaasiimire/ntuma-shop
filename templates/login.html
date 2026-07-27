@@ -1,0 +1,18 @@
+{% extends "_base.html" %}
+{% block content %}
+<div class="panel" style="max-width:420px;margin:40px auto">
+  <h1>Staff Login</h1>
+  <p class="muted">Vendors and operators only. Customers don't need to login.</p>
+  {% if locked and locked>0 %}
+    <div class="flash error">Locked out. Try again in {{ (locked//60) }}m {{ locked%60 }}s.</div>
+  {% endif %}
+  <form method="post">
+    <label>Username</label>
+    <input name="username" required autofocus>
+    <label>Password</label>
+    <input type="password" name="password" required>
+    <br><br>
+    <button class="btn" type="submit" {% if locked and locked>0 %}disabled{% endif %}>Login</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "_base.html" %}
+{% block title %}Order {{ j['name'] }} — {{ APP_NAME }}{% endblock %}
+{% block content %}
+<div class="panel">
+  <h1>Order {{ j['name'] }}</h1>
+  <p class="muted">From <b>{{ v['name'] }}</b></p>
+  <p>Juice: <b>{{ '{:,}'.format(j['price']) }} UGX</b><br>
+     Delivery fee: <b>{{ SERVICE_FEE }} UGX</b><br>
+     <span style="font-size:1.2rem;color:var(--green)"><b>Total: {{ '{:,}'.format(j['price']+SERVICE_FEE) }} UGX</b></span></p>
+  <form method="post">
+    <label>Your name</label>
+    <input name="customer_name" required maxlength="100">
+    <label>Phone number</label>
+    <input name="customer_phone" required maxlength="30" placeholder="07XX XXX XXX">
+    <label>Delivery location (Nansana)</label>
+    <input name="customer_location" required maxlength="200" placeholder="e.g. Nansana, near Total petrol station">
+    <label>Note (optional)</label>
+    <textarea name="note" rows="3" maxlength="500" placeholder="Less ice, extra ginger, etc."></textarea>
+    <br><br>
+    <button class="btn green" type="submit">Place order</button>
+    <a class="btn secondary" href="{{ url_for('vendor_detail', vid=v['id']) }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

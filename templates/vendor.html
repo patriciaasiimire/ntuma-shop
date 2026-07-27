@@ -1,0 +1,24 @@
+{% extends "_base.html" %}
+{% block title %}{{ vendor['name'] }} — JuiceFront{% endblock %}
+{% block content %}
+<a href="{{ url_for('index') }}" class="back">← All vendors</a>
+<section class="vendor-header">
+  <div class="photo big">{{ vendor['photo'] or '🍹' }}</div>
+  <div>
+    <h1>{{ vendor['name'] }}</h1>
+    <p>{{ vendor['description'] }}</p>
+  </div>
+</section>
+<h2 class="section-title">Menu</h2>
+<div class="grid">
+  {% for j in juices %}
+    <div class="card juice-card">
+      <h3>{{ j['name'] }}</h3>
+      <p class="price">UGX {{ '{:,}'.format(j['price']) }} <small>{{ j['unit'] }}</small></p>
+      <a class="btn" href="{{ url_for('order', jid=j['id']) }}">Order</a>
+    </div>
+  {% else %}
+    <p>No juices available right now.</p>
+  {% endfor %}
+</div>
+{% endblock %}
