@@ -1,5 +1,3 @@
-# JuiceFront-main\app.py
-
 """
 JuiceFront - Fresh Juice Delivered
 Airbnb-style marketplace for fresh juice in Nansana, Uganda.
@@ -21,19 +19,8 @@ from functools import wraps
 
 import cloudinary
 import cloudinary.uploader
-from gas_db import (
-    get_vendors,
-    get_vendor,
-    get_juices,
-    get_all_juices,
-    place_order,
-    vendor_login,
-    vendor_orders,
-    update_order_status,
-    add_vendor,
-    add_juice,
-    all_orders,
-)
+import psycopg
+from psycopg.rows import dict_row
 from dotenv import load_dotenv
 from flask import (Flask, g, render_template, request, redirect, url_for,
                     session, flash, abort)
@@ -46,6 +33,9 @@ ALLOWED_EXT = {"png", "jpg", "jpeg", "webp", "gif"}
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024  # 2 MB
 SERVICE_FEE = int(os.getenv("SERVICE_FEE", "200"))  # UGX
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set!")
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SESSION_SECRET", "dev-only-change-me")
@@ -79,15 +69,124 @@ def upload_to_cloudinary(file_storage):
         app.logger.error(f"Cloudinary upload failed: {e}")
         return None
 
-# ---------- Google Apps Script Database ----------
 
+# ---------- Database ----------
 def get_db():
-    """
-    Temporary compatibility stub.
+    if "db" not in g:
+        g.db = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    return g.db
 
-    This will disappear as we migrate each route to gas_db.py.
-    """
-    return None
+
+@app.teardown_appcontext
+def close_db(exc):
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
+
+
+def init_db():
+    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS vendors (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        photo TEXT DEFAULT '',
+        phone TEXT DEFAULT ''
+    );
+    """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS juices (
+        id SERIAL PRIMARY KEY,
+        vendor_id INTEGER NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        price INTEGER NOT NULL,
+        active BOOLEAN DEFAULT TRUE
+    );
+    """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('operator', 'vendor')),
+        vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL
+    );
+    """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS orders (
+        id SERIAL PRIMARY KEY,
+        vendor_id INTEGER NOT NULL REFERENCES vendors(id),
+        vendor_name TEXT NOT NULL,
+        juice_id INTEGER REFERENCES juices(id),
+        juice_name TEXT NOT NULL,
+        juice_price INTEGER NOT NULL,
+        service_fee INTEGER NOT NULL,
+        total INTEGER NOT NULL,
+        customer_name TEXT NOT NULL,
+        customer_phone TEXT NOT NULL,
+        customer_location TEXT NOT NULL,
+        note TEXT DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'Pending',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS login_attempts (
+        ip TEXT PRIMARY KEY,
+        fails INTEGER DEFAULT 0,
+        locked_until BIGINT DEFAULT 0
+    );
+    """)
+    conn.commit()
+
+    # Seed vendors + juices only if empty
+    cur.execute("SELECT COUNT(*) AS count FROM vendors")
+    if cur.fetchone()["count"] == 0:
+        seed = [
+            ("Mama Sarah Juices", "Fresh tropical blends from Nansana market.", "0700000001",
+             [("Mango Passion", 2000), ("Pineapple Ginger", 2500), ("Watermelon Mint", 2000)]),
+            ("Green Leaf Naturals", "100% organic, no added sugar.", "0700000002",
+             [("Avocado Smoothie", 4000), ("Beetroot Boost", 3500), ("Green Detox", 3500)]),
+            ("Tropical Squeeze", "Cold-pressed daily.", "0700000003",
+             [("Orange Fresh", 2500), ("Passion Fruit", 2000), ("Guava Delight", 2500)]),
+            ("Nansana Fresh Co.", "Local fruits, local prices.", "0700000004",
+             [("Sugarcane Juice", 1500), ("Tamarind Cooler", 2000), ("Jackfruit Blend", 3500)]),
+            ("Kampala Juice Bar", "Premium blends, delivered cold.", "0700000005",
+             [("Berry Mix", 4500), ("Tropical Sunrise", 4000), ("Mango Lassi", 3500)]),
+            ("Fruit Basket Uganda", "Family-run since 2015.", "0700000006",
+             [("Pineapple Passion", 2000), ("Watermelon Fresh", 2000), ("Mixed Fruit", 3500)]),
+        ]
+        for name, desc, phone, juices in seed:
+            cur.execute(
+                "INSERT INTO vendors (name, description, phone) VALUES (%s,%s,%s) RETURNING id",
+                (name, desc, phone))
+            vid = cur.fetchone()["id"]
+            for jn, jp in juices:
+                cur.execute(
+                    "INSERT INTO juices (vendor_id, name, price) VALUES (%s,%s,%s)",
+                    (vid, jn, jp))
+
+    # Seed users
+    cur.execute("SELECT COUNT(*) AS count FROM users")
+    if cur.fetchone()["count"] == 0:
+        op_pw = os.getenv("OPERATOR_PASSWORD", "operator123")
+        v_pw = os.getenv("VENDOR_DEFAULT_PASSWORD", "vendor123")
+        cur.execute(
+            "INSERT INTO users (username, password_hash, role) VALUES (%s,%s,%s)",
+            ("operator", generate_password_hash(op_pw), "operator"))
+        cur.execute("SELECT id FROM vendors ORDER BY id")
+        for row in cur.fetchall():
+            cur.execute(
+                "INSERT INTO users (username, password_hash, role, vendor_id) VALUES (%s,%s,%s,%s)",
+                (f"vendor{row['id']}", generate_password_hash(v_pw), "vendor", row["id"]))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
 
 # ---------- Auth helpers ----------
 LOCKOUT_SECONDS = 15 * 60
@@ -159,45 +258,20 @@ def inject_globals():
 # ---------- Public routes ----------
 @app.route("/")
 def index():
-
-    vendors = get_vendors()
-    juices = get_all_juices()
-
-    # Group available juices by vendor
-    juices_by_vendor = {}
-
-    for juice in juices:
-
-        # Skip unavailable juices
-        if str(juice.get("available", "")).lower() not in ("true", "1", "yes"):
-            continue
-
-        vendor_id = str(juice["vendorId"])
-
-        juices_by_vendor.setdefault(vendor_id, []).append(juice)
+    db = get_db()
+    cur = db.cursor()
+    cur.execute("SELECT * FROM vendors ORDER BY id")
+    vendors = cur.fetchall()
 
     cards = []
+    for v in vendors:
+        cur.execute(
+            "SELECT * FROM juices WHERE vendor_id=%s AND active=TRUE ORDER BY price LIMIT 1",
+            (v["id"],))
+        j = cur.fetchone()
+        cards.append({"v": v, "j": j})
+    return render_template("index.html", cards=cards)
 
-    for vendor in vendors:
-
-        vendor_id = str(vendor["vendorId"])
-
-        vendor_juices = juices_by_vendor.get(vendor_id, [])
-
-        # Show the cheapest juice on the home page
-        vendor_juices.sort(key=lambda j: float(j["price"]))
-
-        first_juice = vendor_juices[0] if vendor_juices else None
-
-        cards.append({
-            "v": vendor,
-            "j": first_juice
-        })
-
-    return render_template(
-        "index.html",
-        cards=cards
-    )
 
 @app.route("/vendor/<int:vid>")
 def vendor_detail(vid):
@@ -422,6 +496,10 @@ def e413(e):
     flash("File too large. Max 2MB.", "error")
     return redirect(request.referrer or url_for("index"))
 
+
+# ---------- Bootstrap ----------
+with app.app_context():
+    init_db()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")),
