@@ -6,3 +6,4 @@ python-dotenv==1.0.1
 gunicorn==22.0.0
 psycopg[binary]==3.3.4
 cloudinary==1.45.0
+africastalking==2.0.2
