@@ -21,6 +21,7 @@ from functools import wraps
 
 import cloudinary
 import cloudinary.uploader
+import africastalking
 import psycopg
 from psycopg import errors as pg_errors
 from psycopg.rows import dict_row
@@ -51,6 +52,55 @@ cloudinary.config(
     api_secret=os.getenv("CLOUDINARY_API_SECRET"),
     secure=True,
 )
+
+# ---------- Africa's Talking (SMS) Config ----------
+AT_USERNAME = os.getenv("AT_USERNAME")
+AT_API_KEY = os.getenv("AT_API_KEY")
+AT_SENDER_ID = os.getenv("AT_SENDER_ID")  # optional; leave unset to use the AT sandbox/shared shortcode
+OPERATOR_PHONE = os.getenv("OPERATOR_PHONE", "")  # e.g. 0700000000 -- gets pinged on every new order
+
+sms_service = None
+if AT_USERNAME and AT_API_KEY:
+    try:
+        africastalking.initialize(AT_USERNAME, AT_API_KEY)
+        sms_service = africastalking.SMS
+    except Exception as e:
+        app.logger.error(f"Africa's Talking init failed: {e}")
+else:
+    app.logger.warning("AT_USERNAME/AT_API_KEY not set — SMS notifications are disabled.")
+
+
+def normalize_ug_phone(raw_phone):
+    """Best-effort conversion of a Ugandan number to the +256E.164 format AT requires."""
+    digits = "".join(ch for ch in raw_phone if ch.isdigit() or ch == "+")
+    if digits.startswith("+"):
+        return digits
+    if digits.startswith("256"):
+        return "+" + digits
+    if digits.startswith("0"):
+        return "+256" + digits[1:]
+    if digits:
+        return "+256" + digits
+    return ""
+
+
+def send_sms(raw_phone, message):
+    """Fire-and-forget SMS. Never raises -- a notification failure must never
+    break order placement, since the order is already safely in PostgreSQL."""
+    if not sms_service:
+        return False
+    recipient = normalize_ug_phone(raw_phone or "")
+    if not recipient:
+        return False
+    try:
+        kwargs = {}
+        if AT_SENDER_ID:
+            kwargs["sender_id"] = AT_SENDER_ID
+        sms_service.send(message, [recipient], **kwargs)
+        return True
+    except Exception as e:
+        app.logger.error(f"SMS to {recipient} failed: {e}")
+        return False
 
 
 def upload_to_cloudinary(file_storage):
@@ -327,6 +377,23 @@ def order_form(juice_id):
              SERVICE_FEE, total, name, phone, loc, note, "Pending"))
         order_id = cur.fetchone()["id"]
         db.commit()
+
+        # Notify by SMS. This runs after the commit above, so a notification
+        # failure (bad number, AT outage, no credit) never loses the order --
+        # it's already safely in PostgreSQL either way.
+        order_msg = (
+            f"JuiceFront - New Order #{order_id}\n"
+            f"Vendor: {v['name']}\n"
+            f"Juice: {j['name']}\n"
+            f"Qty/details: {note}\n"
+            f"Customer: {name} ({phone})\n"
+            f"Location: {loc}\n"
+            f"Total: UGX {total:,}"
+        )
+        send_sms(v["phone"], order_msg)
+        if OPERATOR_PHONE:
+            send_sms(OPERATOR_PHONE, order_msg)
+
         return redirect(url_for("success", order_id=order_id))
     return render_template("order_form.html", j=j, v=v)
 
