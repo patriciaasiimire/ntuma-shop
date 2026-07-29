@@ -1,0 +1,60 @@
+<!-- templates\manage_vendors.html -->
+
+{% extends "_base.html" %}
+{% block title %}Manage Vendors — {{ APP_NAME }}{% endblock %}
+{% block content %}
+<h1>Manage Vendors</h1>
+<p class="muted">Add a new vendor here and they get a login instantly — no code changes needed.</p>
+
+<div class="panel">
+  <h2>Add a vendor</h2>
+  <form method="post">
+    <input type="hidden" name="action" value="add_vendor">
+    <label>Vendor name</label>
+    <input name="name" required maxlength="100" placeholder="e.g. Mama Grace Juices">
+    <label>Phone</label>
+    <input name="phone" maxlength="30" placeholder="07XX XXX XXX">
+    <label>Description</label>
+    <textarea name="description" rows="2" maxlength="500" placeholder="Short description shown on the storefront"></textarea>
+    <br><br>
+    <button class="btn green" type="submit">+ Add Vendor</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>All vendors</h2>
+  <table>
+    <tr>
+      <th>#</th><th>Name</th><th>Phone</th><th>Description</th>
+      <th>Login</th><th>Active</th><th></th>
+    </tr>
+    {% for v in vendors %}
+    <tr>
+      <form id="edit-{{ v['id'] }}" method="post">
+        <input type="hidden" name="action" value="edit_vendor">
+        <input type="hidden" name="vendor_id" value="{{ v['id'] }}">
+      </form>
+      <td>{{ v['id'] }}</td>
+      <td><input name="name" value="{{ v['name'] }}" required maxlength="100" form="edit-{{ v['id'] }}"></td>
+      <td><input name="phone" value="{{ v['phone'] }}" maxlength="30" form="edit-{{ v['id'] }}"></td>
+      <td><textarea name="description" rows="2" maxlength="500" form="edit-{{ v['id'] }}">{{ v['description'] }}</textarea></td>
+      <td class="muted">{{ v['login_username'] or '—' }}</td>
+      <td><input type="checkbox" name="active" {% if v['active'] %}checked{% endif %} form="edit-{{ v['id'] }}"></td>
+      <td style="display:flex;flex-direction:column;gap:6px;min-width:130px">
+        <button class="btn small green" type="submit" form="edit-{{ v['id'] }}">Save</button>
+        <form method="post" onsubmit="return confirm('Reset this vendor login password?');">
+          <input type="hidden" name="action" value="reset_password">
+          <input type="hidden" name="vendor_id" value="{{ v['id'] }}">
+          <button class="btn small secondary" type="submit">Reset password</button>
+        </form>
+        <form method="post" onsubmit="return confirm('Delete this vendor? This cannot be undone.');">
+          <input type="hidden" name="action" value="delete_vendor">
+          <input type="hidden" name="vendor_id" value="{{ v['id'] }}">
+          <button class="btn small danger" type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="7" class="muted">No vendors yet — add one above.</td></tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}

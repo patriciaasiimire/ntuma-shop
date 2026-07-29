@@ -16,6 +16,7 @@
         {% if user['role']=='operator' %}
           <a href="{{ url_for('operator_dashboard') }}">Dashboard</a>
           <a href="{{ url_for('orders_all') }}">All orders</a>
+          <a href="{{ url_for('manage_vendors') }}">Vendors</a>
         {% else %}
           <a href="{{ url_for('vendor_dashboard') }}">My Shop</a>
         {% endif %}

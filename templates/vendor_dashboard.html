@@ -81,8 +81,13 @@
     <tr>
       <td>{{ o['id'] }}</td>
       <td>{{ o['juice_name'] }}</td>
-      <td>{{ o['customer_name'] }}<br><span class="muted">{{ o['customer_phone'] }}<br>{{ o['customer_location']
-          }}</span></td>
+      <td>
+        <strong>{{ o['customer_name'] }}</strong><br>
+        <span class="muted">{{ o['customer_phone'] }}<br>{{ o['customer_location'] }}</span>
+        {% if o['note'] %}
+        <br><small style="color:#f97316;"><strong>Order:</strong> {{ o['note'] }}</small>
+        {% endif %}
+      </td>
       <td>{{ '{:,}'.format(o['total']) }}</td>
       <td><span class="badge {{ o['status']|replace(' ','') }}">{{ o['status'] }}</span></td>
       <td class="muted">{{ o['created_at'] }}</td>
