@@ -1,3 +1,5 @@
+# requirements.txt
+
 Flask==3.0.3
 Werkzeug==3.0.4
 python-dotenv==1.0.1

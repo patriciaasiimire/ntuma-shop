@@ -12,6 +12,8 @@ Persistence:
   - Vendor photos -> Cloudinary (URLs stored in the vendors.photo column)
 """
 import os
+import secrets
+import string
 import time
 import uuid
 from datetime import date
@@ -20,6 +22,7 @@ from functools import wraps
 import cloudinary
 import cloudinary.uploader
 import psycopg
+from psycopg import errors as pg_errors
 from psycopg.rows import dict_row
 from dotenv import load_dotenv
 from flask import (Flask, g, render_template, request, redirect, url_for,
@@ -70,6 +73,17 @@ def upload_to_cloudinary(file_storage):
         return None
 
 
+def generate_password(length=10):
+    """Random, readable-enough password for newly-created vendor logins."""
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def slugify_username(name):
+    base = "".join(ch.lower() if ch.isalnum() else "" for ch in name) or "vendor"
+    return base[:20]
+
+
 # ---------- Database ----------
 def get_db():
     if "db" not in g:
@@ -97,6 +111,8 @@ def init_db():
         phone TEXT DEFAULT ''
     );
     """)
+    # Migration for existing DBs that predate the active/inactive toggle.
+    cur.execute("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;")
     cur.execute("""
     CREATE TABLE IF NOT EXISTS juices (
         id SERIAL PRIMARY KEY,
@@ -142,26 +158,20 @@ def init_db():
     """)
     conn.commit()
 
-    # Seed vendors + juices only if empty
+    # Seed vendors + juices only if empty. Kept to just the two real vendors in
+    # use today -- everyone else should be added from Operator -> Manage
+    # Vendors, not from code.
     cur.execute("SELECT COUNT(*) AS count FROM vendors")
     if cur.fetchone()["count"] == 0:
         seed = [
-            ("Mama Sarah Juices", "Fresh tropical blends from Nansana market.", "0700000001",
+            ("Mama Pauline", "Fresh tropical blends from Nansana market.", "0700000001",
              [("Mango Passion", 2000), ("Pineapple Ginger", 2500), ("Watermelon Mint", 2000)]),
-            ("Green Leaf Naturals", "100% organic, no added sugar.", "0700000002",
+            ("Mama Hailey", "100% organic, no added sugar.", "0700000002",
              [("Avocado Smoothie", 4000), ("Beetroot Boost", 3500), ("Green Detox", 3500)]),
-            ("Tropical Squeeze", "Cold-pressed daily.", "0700000003",
-             [("Orange Fresh", 2500), ("Passion Fruit", 2000), ("Guava Delight", 2500)]),
-            ("Nansana Fresh Co.", "Local fruits, local prices.", "0700000004",
-             [("Sugarcane Juice", 1500), ("Tamarind Cooler", 2000), ("Jackfruit Blend", 3500)]),
-            ("Kampala Juice Bar", "Premium blends, delivered cold.", "0700000005",
-             [("Berry Mix", 4500), ("Tropical Sunrise", 4000), ("Mango Lassi", 3500)]),
-            ("Fruit Basket Uganda", "Family-run since 2015.", "0700000006",
-             [("Pineapple Passion", 2000), ("Watermelon Fresh", 2000), ("Mixed Fruit", 3500)]),
         ]
         for name, desc, phone, juices in seed:
             cur.execute(
-                "INSERT INTO vendors (name, description, phone) VALUES (%s,%s,%s) RETURNING id",
+                "INSERT INTO vendors (name, description, phone, active) VALUES (%s,%s,%s,TRUE) RETURNING id",
                 (name, desc, phone))
             vid = cur.fetchone()["id"]
             for jn, jp in juices:
@@ -260,7 +270,7 @@ def inject_globals():
 def index():
     db = get_db()
     cur = db.cursor()
-    cur.execute("SELECT * FROM vendors ORDER BY id")
+    cur.execute("SELECT * FROM vendors WHERE active=TRUE ORDER BY id")
     vendors = cur.fetchall()
 
     cards = []
@@ -277,7 +287,7 @@ def index():
 def vendor_detail(vid):
     db = get_db()
     cur = db.cursor()
-    cur.execute("SELECT * FROM vendors WHERE id=%s", (vid,))
+    cur.execute("SELECT * FROM vendors WHERE id=%s AND active=TRUE", (vid,))
     v = cur.fetchone()
     if not v:
         abort(404)
@@ -303,8 +313,8 @@ def order_form(juice_id):
         phone = request.form.get("customer_phone", "").strip()[:30]
         loc = request.form.get("customer_location", "").strip()[:200]
         note = request.form.get("note", "").strip()[:500]
-        if not (name and phone and loc):
-            flash("Please fill in name, phone and location.", "error")
+        if not (name and phone and loc and note):
+            flash("Please fill in all fields.", "error")
             return render_template("order_form.html", j=j, v=v)
         total = j["price"] + SERVICE_FEE
         cur.execute("""INSERT INTO orders
@@ -478,6 +488,90 @@ def orders_all():
     cur.execute("SELECT * FROM orders ORDER BY id DESC")
     orders = cur.fetchall()
     return render_template("orders.html", orders=orders)
+
+
+# ---------- Operator: manage vendors (no-code onboarding) ----------
+@app.route("/operator/vendors", methods=["GET", "POST"])
+@login_required(role="operator")
+def manage_vendors():
+    db = get_db()
+    cur = db.cursor()
+
+    if request.method == "POST":
+        action = request.form.get("action")
+
+        if action == "add_vendor":
+            name = request.form.get("name", "").strip()[:100]
+            desc = request.form.get("description", "").strip()[:500]
+            phone = request.form.get("phone", "").strip()[:30]
+            if not name:
+                flash("Vendor name is required.", "error")
+                return redirect(url_for("manage_vendors"))
+
+            cur.execute(
+                "INSERT INTO vendors (name, description, phone, active) VALUES (%s,%s,%s,TRUE) RETURNING id",
+                (name, desc, phone))
+            vid = cur.fetchone()["id"]
+
+            # Create a login for the new vendor, username unique-ified with the vendor id.
+            username = f"{slugify_username(name)}{vid}"
+            password = generate_password()
+            cur.execute(
+                "INSERT INTO users (username, password_hash, role, vendor_id) VALUES (%s,%s,'vendor',%s)",
+                (username, generate_password_hash(password), vid))
+            db.commit()
+
+            flash(f"Vendor '{name}' added. Login — username: {username}  password: {password} "
+                  f"(share this with the vendor now; it won't be shown again).", "ok")
+
+        elif action == "edit_vendor":
+            vid = int(request.form.get("vendor_id", "0"))
+            name = request.form.get("name", "").strip()[:100]
+            desc = request.form.get("description", "").strip()[:500]
+            phone = request.form.get("phone", "").strip()[:30]
+            active = request.form.get("active") == "on"
+            if not name:
+                flash("Vendor name is required.", "error")
+                return redirect(url_for("manage_vendors"))
+            cur.execute(
+                "UPDATE vendors SET name=%s, description=%s, phone=%s, active=%s WHERE id=%s",
+                (name, desc, phone, active, vid))
+            db.commit()
+            flash("Vendor updated.", "ok")
+
+        elif action == "reset_password":
+            vid = int(request.form.get("vendor_id", "0"))
+            new_password = generate_password()
+            cur.execute(
+                "UPDATE users SET password_hash=%s WHERE vendor_id=%s AND role='vendor'",
+                (generate_password_hash(new_password), vid))
+            db.commit()
+            if cur.rowcount == 0:
+                flash("That vendor has no login yet — nothing to reset.", "error")
+            else:
+                flash(f"New password for this vendor: {new_password} "
+                      f"(share it now; it won't be shown again).", "ok")
+
+        elif action == "delete_vendor":
+            vid = int(request.form.get("vendor_id", "0"))
+            try:
+                cur.execute("DELETE FROM vendors WHERE id=%s", (vid,))
+                db.commit()
+                flash("Vendor deleted.", "ok")
+            except pg_errors.ForeignKeyViolation:
+                db.rollback()
+                flash("Can't delete a vendor with existing orders — mark them inactive instead.", "error")
+
+        return redirect(url_for("manage_vendors"))
+
+    cur.execute("""
+        SELECT v.*, u.username AS login_username
+        FROM vendors v
+        LEFT JOIN users u ON u.vendor_id = v.id AND u.role = 'vendor'
+        ORDER BY v.id
+    """)
+    vendors = cur.fetchall()
+    return render_template("manage_vendors.html", vendors=vendors)
 
 
 # ---------- Errors ----------
