@@ -1,0 +1,29 @@
+{% extends "_base.html" %}
+{% block title %}{% if q %}"{{ q }}" — {% endif %}Search — {{ APP_NAME }}{% endblock %}
+{% block content %}
+<h1>{% if q %}Results for "{{ q }}"{% else %}Search{% endif %}</h1>
+
+{% if not q %}
+  <p class="muted">Type something into the search box above to find a vendor, a juice, or a snack.</p>
+{% elif not cards %}
+  <p class="muted">Nothing matched "{{ q }}" — try a different word, or check the vendor's exact name.</p>
+{% else %}
+  <div class="grid">
+    {% for c in cards %}
+      {% set v = c.v %}{% set j = c.j %}
+      <a class="card" href="{{ url_for('vendor_detail', vid=v['id']) }}" style="color:inherit">
+        <div class="photo">
+          {% if v['photo'] %}
+            <img src="{{ v['photo'] }}" alt="{{ v['name'] }}">
+          {% else %}🥤{% endif %}
+        </div>
+        <div class="body">
+          <h3>{{ v['name'] }}{% if v['venue_id'] %}<span class="venue-badge" style="margin-left:6px">Grounds</span>{% endif %}</h3>
+          <div class="muted">{{ v['description'][:80] }}</div>
+          {% if j %}<div class="price">{{ j['name'] }}{% if j['category'] and j['category'] != 'Juice' %}<span class="category-tag">{{ j['category'] }}</span>{% endif %} · {{ '{:,}'.format(j['price']) }} UGX</div>{% endif %}
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

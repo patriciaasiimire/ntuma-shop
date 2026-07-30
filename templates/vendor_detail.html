@@ -7,21 +7,48 @@
     {% else %}🥤{% endif %}
   </div>
   <div style="flex:1;min-width:220px">
-    <h1 style="margin:0">{{ v['name'] }}</h1>
+    <h1 style="margin:0">{{ v['name'] }}
+      {% if venue %}
+        <span class="venue-badge {{ '' if venue['active'] else 'closed' }}">
+          🎪 {{ venue['name'] }}{% if not venue['active'] %} — closed{% endif %}
+        </span>
+      {% endif %}
+    </h1>
     <p class="muted">{{ v['description'] }}</p>
+    {% if venue %}
+      <p class="muted">{{ venue['schedule_note'] }}</p>
+      {% if not venue['active'] %}
+        <p class="muted">⏸️ Not currently serving — check back during service hours.</p>
+      {% endif %}
+    {% endif %}
+    <p class="muted">
+      {% if venue %}📍 Find-me-in-the-crowd delivery (no address needed)
+      {% elif v['delivery_policy'] == 'free' %}🚚 Free delivery
+      {% elif v['delivery_policy'] == 'calculated' %}🚚 Delivery fee confirmed by vendor after order
+      {% else %}🚚 {{ '{:,}'.format(v['delivery_fee']) }} UGX delivery fee
+      {% endif %}
+    </p>
   </div>
 </div>
-<h2>Juices</h2>
-<div class="grid">
-  {% for j in juices %}
-    <div class="card"><div class="body">
-      <h3>{{ j['name'] }}</h3>
-      <div class="price">{{ '{:,}'.format(j['price']) }} UGX</div>
-      <p class="muted">+ {{ SERVICE_FEE }} UGX delivery</p>
-      <a class="btn" href="{{ url_for('order_form', juice_id=j['id']) }}">Order</a>
-    </div></div>
-  {% else %}
-    <p class="muted">No juices available right now.</p>
-  {% endfor %}
-</div>
+{% for cat in CATEGORIES %}
+  {% set cat_juices = juices|selectattr('category', 'equalto', cat)|list %}
+  {% if cat_juices %}
+    <h2>{{ cat }}</h2>
+    <div class="grid">
+      {% for j in cat_juices %}
+        <div class="card"><div class="body">
+          <h3>{{ j['name'] }}</h3>
+          <div class="price">{{ '{:,}'.format(j['price']) }} UGX</div>
+          <a class="btn {% if venue and not venue['active'] %}secondary{% endif %}"
+             href="{{ url_for('order_form', juice_id=j['id']) }}">
+            {% if venue and not venue['active'] %}Closed{% else %}Order{% endif %}
+          </a>
+        </div></div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endfor %}
+{% if not juices %}
+  <p class="muted">Nothing available right now.</p>
+{% endif %}
 {% endblock %}

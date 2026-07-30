@@ -3,6 +3,30 @@
 {% block content %}
 <h1>My Shop 🍊</h1>
 
+{% if venue %}
+<div class="panel">
+  <h2>Venue</h2>
+  <p>You're checked into <span class="venue-badge {{ '' if venue['active'] else 'closed' }}">🎪 {{ venue['name'] }}{% if not venue['active'] %} — closed{% endif %}</span></p>
+  <p class="muted">{{ venue['schedule_note'] }}</p>
+  <p class="muted">Customers here send a seat description (and optional photo) instead of an address — the operator toggles this venue open/closed around service times.</p>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>Your JuiceFront plan</h2>
+  {% if billing['completed_count'] < FREE_ORDER_LIMIT %}
+    <p>You've used <strong>{{ billing['free_used'] }} of your {{ FREE_ORDER_LIMIT }} free delivered orders</strong>.
+       No fees while you're in this window.</p>
+  {% else %}
+    <p>Your {{ FREE_ORDER_LIMIT }} free orders are used up. Since then you've had
+       <strong>{{ billing['billable_orders'] }}</strong> delivered order{{ '' if billing['billable_orders']==1 else 's' }},
+       so you currently owe
+       <strong style="color:var(--orange)">{{ '{:,}'.format(billing['commission_owed']) }} UGX</strong>
+       ({{ (COMMISSION_RATE * 100)|round|int }}% of the product price on those orders — delivery fees are never commissioned).
+       We'll be in touch about settling this and keeping your listing active.</p>
+  {% endif %}
+</div>
+
 <div class="panel">
   <h2>Profile</h2>
   <form method="post" enctype="multipart/form-data">
@@ -21,6 +45,18 @@
     </div>
     <label>Description</label>
     <textarea name="description" rows="3">{{ v['description'] }}</textarea>
+
+    <label>Delivery policy</label>
+    <select name="delivery_policy" id="delivery_policy" onchange="document.getElementById('delivery_fee_row').style.display = (this.value==='fixed') ? 'block' : 'none'">
+      {% for key, label in DELIVERY_POLICIES.items() %}
+        <option value="{{ key }}" {% if v['delivery_policy']==key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <div id="delivery_fee_row" style="{% if v['delivery_policy'] != 'fixed' %}display:none{% endif %}">
+      <label>Delivery fee (UGX)</label>
+      <input type="number" name="delivery_fee" min="0" value="{{ v['delivery_fee'] }}">
+    </div>
+
     <label>Upload new photo (max 2MB)</label>
     <input type="file" name="photo" accept="image/*">
     <br><br><button class="btn" type="submit">Save profile</button>
@@ -32,6 +68,7 @@
   <table>
     <tr>
       <th>Name</th>
+      <th>Category</th>
       <th>Price (UGX)</th>
       <th>Active</th>
       <th></th>
@@ -42,12 +79,19 @@
         <input type="hidden" name="action" value="edit_juice">
         <input type="hidden" name="juice_id" value="{{ j['id'] }}">
         <td><input name="juice_name" value="{{ j['name'] }}"></td>
+        <td>
+          <select name="category">
+            {% for c in CATEGORIES %}
+              <option value="{{ c }}" {% if j['category']==c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </td>
         <td><input name="juice_price" type="number" value="{{ j['price'] }}"></td>
         <td><input type="checkbox" name="active" {% if j['active'] %}checked{% endif %}></td>
         <td>
           <button class="btn small green" type="submit">Save</button>
       </form>
-      <form method="post" style="display:inline" onsubmit="return confirm('Delete this juice?')">
+      <form method="post" style="display:inline" onsubmit="return confirm('Delete this item?')">
         <input type="hidden" name="action" value="delete_juice">
         <input type="hidden" name="juice_id" value="{{ j['id'] }}">
         <button class="btn small danger" type="submit">Delete</button>
@@ -56,10 +100,16 @@
     </tr>
     {% endfor %}
   </table>
-  <h3>Add new juice</h3>
+  <h3>Add new item</h3>
   <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
     <input type="hidden" name="action" value="add_juice">
     <div style="flex:2;min-width:180px"><label>Name</label><input name="juice_name" required></div>
+    <div style="flex:1;min-width:140px">
+      <label>Category</label>
+      <select name="category">
+        {% for c in CATEGORIES %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </div>
     <div style="flex:1;min-width:120px"><label>Price</label><input name="juice_price" type="number" min="1" required>
     </div>
     <button class="btn" type="submit">Add</button>
@@ -83,13 +133,24 @@
       <td>{{ o['juice_name'] }}</td>
       <td>
         <strong>{{ o['customer_name'] }}</strong><br>
-        <span class="muted">{{ o['customer_phone'] }}<br>{{ o['customer_location'] }}</span>
+        <span class="muted">{{ o['customer_phone'] }}<br>
+          {% if o['venue_id'] %}📍 {{ o['seat_description'] or o['customer_location'] }}{% else %}{{ o['customer_location'] }}{% endif %}
+        </span>
+        {% if o['photo_url'] %}
+          <br><a href="{{ o['photo_url'] }}" target="_blank" rel="noopener">
+            <img src="{{ o['photo_url'] }}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;margin-top:4px" alt="customer photo"></a>
+        {% endif %}
         {% if o['note'] %}
         <br><small style="color:#f97316;"><strong>Order:</strong> {{ o['note'] }}</small>
         {% endif %}
       </td>
       <td>{{ '{:,}'.format(o['total']) }}</td>
-      <td><span class="badge {{ o['status']|replace(' ','') }}">{{ o['status'] }}</span></td>
+      <td>
+        <span class="badge {{ o['status']|replace(' ','') }}">{{ o['status'] }}</span>
+        {% if o['awaiting_customer_confirmation'] %}
+          <br><small style="color:#f97316;">⏳ awaiting customer confirmation</small>
+        {% endif %}
+      </td>
       <td class="muted">{{ o['created_at'] }}</td>
     </tr>
     {% else %}<tr>

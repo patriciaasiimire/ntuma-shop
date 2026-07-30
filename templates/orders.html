@@ -9,7 +9,8 @@
 {% for o in orders %}
 <tr>
   <td>{{ o['id'] }}</td><td>{{ o['vendor_name'] }}</td><td>{{ o['juice_name'] }}</td>
-  <td>{{ o['customer_name'] }}</td><td>{{ o['customer_phone'] }}</td><td>{{ o['customer_location'] }}</td>
+  <td>{{ o['customer_name'] }}</td><td>{{ o['customer_phone'] }}</td>
+  <td>{% if o['venue_id'] %}📍 {{ o['seat_description'] or o['customer_location'] }}{% else %}{{ o['customer_location'] }}{% endif %}</td>
   <td>{{ '{:,}'.format(o['total']) }}</td>
   <td><span class="badge {{ o['status']|replace(' ','') }}">{{ o['status'] }}</span></td>
   <td class="muted">{{ o['created_at'] }}</td>
