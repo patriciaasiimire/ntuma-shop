@@ -5,15 +5,35 @@
   <h1>Order {{ j['name'] }}</h1>
   <p class="muted">From <b>{{ v['name'] }}</b></p>
   <p>Juice: <b>{{ '{:,}'.format(j['price']) }} UGX</b><br>
-    Delivery fee: <b>{{ SERVICE_FEE }} UGX</b><br>
+    {% if v['delivery_policy'] == 'calculated' %}
+      Delivery: <b>Confirmed by vendor after order</b><br>
+      <span style="font-size:1.2rem;color:var(--green)"><b>Total: {{ '{:,}'.format(j['price']) }}
+          UGX + delivery</b></span>
+    {% else %}
+      Delivery fee: <b>{{ '{:,}'.format(delivery_fee) }} UGX{% if v['delivery_policy'] == 'free' %} (free){% endif %}</b><br>
+      <span style="font-size:1.2rem;color:var(--green)"><b>Total: {{ '{:,}'.format(j['price']+delivery_fee) }}
+          UGX</b></span>
+    {% endif %}
   </p>
-  <form method="post">
+  {% if venue %}
+    <p class="muted">🎪 Ordering at <b>{{ venue['name'] }}</b> — instead of an address, tell the vendor
+      where you're seated so they can find you in the crowd.</p>
+  {% endif %}
+  <form method="post" {% if venue %}enctype="multipart/form-data"{% endif %}>
     <label>Your name</label>
     <input name="customer_name" required maxlength="100">
     <label>Phone number</label>
     <input name="customer_phone" required maxlength="30" placeholder="07XX XXX XXX">
-    <label>Delivery location (Nansana)</label>
-    <input name="customer_location" required maxlength="200" placeholder="e.g. Nansana, near Total petrol station">
+    {% if venue %}
+      <label>Where are you seated?</label>
+      <input name="seat_description" required maxlength="200"
+             placeholder="e.g. Blue section, near the sound booth, aisle seat">
+      <label>Photo (optional — helps the vendor spot you)</label>
+      <input type="file" name="photo" accept="image/*">
+    {% else %}
+      <label>Delivery location (Nansana)</label>
+      <input name="customer_location" required maxlength="200" placeholder="e.g. Nansana, near Total petrol station">
+    {% endif %}
     <label>How many do you want?</label>
     <input type="text" name="note" required maxlength="100" placeholder="Example: I want 5">
     <br><br>

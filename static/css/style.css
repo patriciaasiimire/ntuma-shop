@@ -14,6 +14,14 @@ nav .container{display:flex;align-items:center;justify-content:space-between;gap
 .brand{font-weight:800;font-size:1.4rem;color:var(--orange)}
 .brand span{color:var(--green)}
 .nav-links a{margin-left:14px;color:var(--ink);font-weight:500}
+.nav-search{display:flex;align-items:center;flex:1;max-width:320px;margin:0 12px;background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:2px 4px 2px 14px}
+.nav-search input{border:none;background:transparent;padding:8px 4px;width:100%;font-size:.9rem}
+.nav-search input:focus{outline:none}
+.nav-search button{background:var(--orange);color:#fff;border:none;border-radius:999px;width:34px;height:34px;font-size:.9rem;cursor:pointer;flex-shrink:0}
+.venue-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.8rem;font-weight:600;background:#ede9fe;color:#5b21b6}
+.venue-badge.closed{background:#fee2e2;color:#991b1b}
+.category-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.75rem;font-weight:600;background:#fff5e6;color:#7c2d12;margin-left:6px}
+@media(max-width:700px){.nav-search{order:3;max-width:100%;margin:8px 0 0}nav .container{flex-wrap:wrap}}
 .hero{background:linear-gradient(135deg,var(--orange),var(--pink));color:#fff;padding:56px 16px;text-align:center;border-radius:0 0 24px 24px}
 .hero h1{font-size:2.4rem;margin:0 0 8px}
 .hero p{font-size:1.1rem;margin:0;opacity:.95}

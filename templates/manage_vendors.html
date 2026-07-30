@@ -16,8 +16,51 @@
     <input name="phone" maxlength="30" placeholder="07XX XXX XXX">
     <label>Description</label>
     <textarea name="description" rows="2" maxlength="500" placeholder="Short description shown on the storefront"></textarea>
+    <label>Venue (optional — check them into a Grounds venue like Phaneroo)</label>
+    <select name="venue_id">
+      <option value="">— Regular delivery vendor —</option>
+      {% for ve in venues %}
+        <option value="{{ ve['id'] }}">{{ ve['name'] }}</option>
+      {% endfor %}
+    </select>
     <br><br>
     <button class="btn green" type="submit">+ Add Vendor</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Venues</h2>
+  <p class="muted">A venue is a gathering place with its own schedule (e.g. Phaneroo's two weekly services).
+    Vendors checked into a venue use find-me-in-the-crowd delivery instead of an address. Toggle a venue
+    closed outside service hours to pause ordering for everyone checked into it.</p>
+  <table>
+    <tr><th>Name</th><th>Schedule note</th><th>Status</th><th></th></tr>
+    {% for ve in venues %}
+    <tr>
+      <form id="venue-edit-{{ ve['id'] }}" method="post">
+        <input type="hidden" name="action" value="edit_venue">
+        <input type="hidden" name="venue_id" value="{{ ve['id'] }}">
+      </form>
+      <td><input name="venue_name" value="{{ ve['name'] }}" required maxlength="100" form="venue-edit-{{ ve['id'] }}"></td>
+      <td><input name="schedule_note" value="{{ ve['schedule_note'] }}" maxlength="200" form="venue-edit-{{ ve['id'] }}"></td>
+      <td><span class="venue-badge {{ '' if ve['active'] else 'closed' }}">{% if ve['active'] %}Open{% else %}Closed{% endif %}</span></td>
+      <td style="display:flex;flex-direction:column;gap:6px;min-width:110px">
+        <button class="btn small green" type="submit" form="venue-edit-{{ ve['id'] }}">Save</button>
+        <form method="post">
+          <input type="hidden" name="action" value="toggle_venue">
+          <input type="hidden" name="venue_id" value="{{ ve['id'] }}">
+          <button class="btn small secondary" type="submit">{% if ve['active'] %}Close{% else %}Open{% endif %}</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="4" class="muted">No venues yet — add one below.</td></tr>{% endfor %}
+  </table>
+  <h3>Add a venue</h3>
+  <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+    <input type="hidden" name="action" value="add_venue">
+    <div style="flex:2;min-width:180px"><label>Name</label><input name="venue_name" required placeholder="e.g. Phaneroo Grounds"></div>
+    <div style="flex:2;min-width:220px"><label>Schedule note</label><input name="schedule_note" placeholder="e.g. 2 services a week"></div>
+    <button class="btn" type="submit">+ Add Venue</button>
   </form>
 </div>
 
@@ -25,7 +68,7 @@
   <h2>All vendors</h2>
   <table>
     <tr>
-      <th>#</th><th>Name</th><th>Phone</th><th>Description</th>
+      <th>#</th><th>Name</th><th>Phone</th><th>Description</th><th>Delivery</th><th>Venue</th>
       <th>Login</th><th>Active</th><th></th>
     </tr>
     {% for v in vendors %}
@@ -38,6 +81,26 @@
       <td><input name="name" value="{{ v['name'] }}" required maxlength="100" form="edit-{{ v['id'] }}"></td>
       <td><input name="phone" value="{{ v['phone'] }}" maxlength="30" form="edit-{{ v['id'] }}"></td>
       <td><textarea name="description" rows="2" maxlength="500" form="edit-{{ v['id'] }}">{{ v['description'] }}</textarea></td>
+      <td style="min-width:150px">
+        <select name="delivery_policy" form="edit-{{ v['id'] }}"
+                onchange="document.getElementById('fee-{{ v['id'] }}').style.display = (this.value==='fixed') ? 'block' : 'none'">
+          {% for key, label in DELIVERY_POLICIES.items() %}
+            <option value="{{ key }}" {% if v['delivery_policy']==key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <div id="fee-{{ v['id'] }}" style="{% if v['delivery_policy'] != 'fixed' %}display:none{% endif %};margin-top:4px">
+          <input type="number" name="delivery_fee" min="0" value="{{ v['delivery_fee'] }}"
+                 placeholder="Fee (UGX)" form="edit-{{ v['id'] }}">
+        </div>
+      </td>
+      <td style="min-width:130px">
+        <select name="venue_id" form="edit-{{ v['id'] }}">
+          <option value="">— None —</option>
+          {% for ve in venues %}
+            <option value="{{ ve['id'] }}" {% if v['venue_id']==ve['id'] %}selected{% endif %}>{{ ve['name'] }}</option>
+          {% endfor %}
+        </select>
+      </td>
       <td class="muted">{{ v['login_username'] or '—' }}</td>
       <td><input type="checkbox" name="active" {% if v['active'] %}checked{% endif %} form="edit-{{ v['id'] }}"></td>
       <td style="display:flex;flex-direction:column;gap:6px;min-width:130px">
@@ -54,7 +117,7 @@
         </form>
       </td>
     </tr>
-    {% else %}<tr><td colspan="7" class="muted">No vendors yet — add one above.</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="9" class="muted">No vendors yet — add one above.</td></tr>{% endfor %}
   </table>
 </div>
 {% endblock %}

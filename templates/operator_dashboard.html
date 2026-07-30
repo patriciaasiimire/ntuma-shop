@@ -13,6 +13,37 @@
 </div>
 
 <div class="panel">
+  <h2>Vendor billing</h2>
+  <p class="muted">Each vendor's first {{ FREE_ORDER_LIMIT }} delivered orders are free.
+    From order {{ FREE_ORDER_LIMIT + 1 }} onward, JuiceFront takes {{ (COMMISSION_RATE * 100)|round|int }}%
+    of the product price (never the delivery fee).</p>
+  <table>
+    <tr>
+      <th>Vendor</th>
+      <th>Delivered orders</th>
+      <th>Free orders used</th>
+      <th>Billable orders</th>
+      <th>Commission owed</th>
+    </tr>
+    {% for b in vendor_billing %}
+    <tr>
+      <td>{{ b['name'] }}</td>
+      <td>{{ b['completed_count'] }}</td>
+      <td>{{ b['free_used'] }}/{{ FREE_ORDER_LIMIT }}</td>
+      <td>{{ b['billable_orders'] }}</td>
+      <td>
+        {% if b['commission_owed'] > 0 %}
+          <strong style="color:var(--orange)">{{ '{:,}'.format(b['commission_owed']) }} UGX</strong>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="muted">No vendors yet.</td></tr>{% endfor %}
+  </table>
+</div>
+
+<div class="panel">
   <h2>All orders</h2>
   <table>
     <tr>
@@ -35,8 +66,12 @@
 
         <span class="muted">
           {{ o['customer_phone'] }}<br>
-          {{ o['customer_location'] }}
+          {% if o['venue_id'] %}📍 {{ o['seat_description'] or o['customer_location'] }}{% else %}{{ o['customer_location'] }}{% endif %}
         </span>
+        {% if o['photo_url'] %}
+          <br><a href="{{ o['photo_url'] }}" target="_blank" rel="noopener">
+            <img src="{{ o['photo_url'] }}" style="width:50px;height:50px;object-fit:cover;border-radius:8px;margin-top:4px" alt="customer photo"></a>
+        {% endif %}
 
         {% if o['note'] %}
         <br>
@@ -46,7 +81,15 @@
         {% endif %}
       </td>
       <td>{{ '{:,}'.format(o['total']) }}</td>
-      <td><span class="badge {{ o['status']|replace(' ','') }}">{{ o['status'] }}</span></td>
+      <td>
+        <span class="badge {{ o['status']|replace(' ','') }}">{{ o['status'] }}</span>
+        {% if o['awaiting_customer_confirmation'] %}
+          <br><small style="color:#f97316;">⏳ awaiting customer confirmation</small>
+        {% endif %}
+        {% if o['cancel_dispute_note'] %}
+          <br><small class="muted">{{ o['cancel_dispute_note'] }}</small>
+        {% endif %}
+      </td>
       <td>
         <form method="post" style="display:flex;gap:6px">
           <input type="hidden" name="order_id" value="{{ o['id'] }}">

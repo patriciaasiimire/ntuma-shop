@@ -14,7 +14,7 @@
         {% else %}🥤{% endif %}
       </div>
       <div class="body">
-        <h3>{{ v['name'] }}</h3>
+        <h3>{{ v['name'] }}{% if v['venue_id'] %}<span class="venue-badge" style="margin-left:6px">Grounds</span>{% endif %}</h3>
         <div class="muted">{{ v['description'][:80] }}</div>
         {% if j %}<div class="price">{{ j['name'] }} · {{ '{:,}'.format(j['price']) }} UGX</div>{% endif %}
       </div>
